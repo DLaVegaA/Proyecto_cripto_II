@@ -1,0 +1,48 @@
+import json
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+
+# --- Estas funciones vendrían de crypto_utils.py (parte de Pablo) ---
+def generate_keys_util():
+    """Genera un par de claves (privada, pública) ECDSA."""
+    private_key = ec.generate_private_key(ec.SECP384R1())
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+def serialize_public_key(public_key):
+    """Convierte una clave pública a formato PEM (string)."""
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return public_pem.decode('utf-8')
+# -----------------------------------------------------------------
+
+print("Generando claves de prueba para 'anuar' y 'leader_project'...")
+
+# Generar claves para 'anuar' (programador)
+_, anuar_pub = generate_keys_util()
+anuar_pem = serialize_public_key(anuar_pub)
+
+# Generar claves para 'leader_project' (líder)
+_, leader_pub = generate_keys_util()
+leader_pem = serialize_public_key(leader_pub)
+
+# Crear el diccionario de la "base de datos"
+key_database = {
+    "anuar": {
+        "role": "programador",
+        "public_key_pem": anuar_pem
+    },
+    "leader_project": {
+        "role": "lider",
+        "public_key_pem": leader_pem
+    }
+}
+
+# Guardar en el archivo JSON
+with open('public_keys.json', 'w') as f:
+    json.dump(key_database, f, indent=4)
+
+print("¡Listo! 'public_keys.json' creado con éxito.")
+print("Por favor, elimina este script (_generate_dummy_keys.py) o añádelo a .gitignore.")

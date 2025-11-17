@@ -1,60 +1,85 @@
-import hashlib
-from cryptography.hazmat.primitives import hashes
+# crypto_utils.py
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.serialization import load_pem_public_key
-from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.utils import (
+    encode_dss_signature
+)
+from cryptography.hazmat.backends import default_backend
+import os
+
+KEY_DIR = "keys"
+PRIVATE_KEY_PATH = os.path.join(KEY_DIR, "private_key.pem")
+PUBLIC_KEY_PATH = os.path.join(KEY_DIR, "public_key.pem")
 
 
-def hash_data(data: str) -> bytes:
-    """
-    Calcula el hash SHA-256 de una cadena de texto y devuelve los bytes del hash.
-    """
-    # Convertimos el string a bytes
-    data_bytes = data.encode('utf-8')
+# -----------------------------------------------------
+# GENERATE KEYS
+# -----------------------------------------------------
+def generate_keys():
+    if not os.path.exists(KEY_DIR):
+        os.makedirs(KEY_DIR)
 
-    # Creamos el objeto hash
-    sha256 = hashlib.sha256()
+    private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
+    public_key = private_key.public_key()
 
-    # Actualizamos el hash con nuestros datos
-    sha256.update(data_bytes)
-
-    # Devolvemos el digest (el hash en bytes)
-    return sha256.digest()
-
-
-def verify_signature(public_key_pem: bytes, signature: bytes, data: str) -> bool:
-    """
-    Verifica una firma ECDSA.
-
-    Parámetros:
-    - public_key_pem: La clave pública en formato PEM (como bytes).
-    - signature: La firma digital recibida (como bytes).
-    - data: Los datos originales (string) que supuestamente fueron firmados.
-    """
-    try:
-        # 1. Cargar la clave pública desde el formato PEM
-        public_key = load_pem_public_key(public_key_pem)
-
-        # 2. Recalcular el hash de los datos originales
-        #    La firma se hace sobre el hash, no sobre los datos crudos.
-        data_hash = hash_data(data)
-
-        # 3. Verificar la firma usando la clave pública
-        public_key.verify(
-            signature,
-            data_hash,  # El hash que acabamos de calcular
-            ec.ECDSA(hashes.SHA256())  # Especificamos el algoritmo de firma
+    # Guardar privada
+    with open(PRIVATE_KEY_PATH, "wb") as f:
+        f.write(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
         )
 
-        # Si la función .verify() no lanza una excepción, la firma es válida.
-        print("Verificación de firma: Exitosa")
-        return True
+    # Guardar pública
+    with open(PUBLIC_KEY_PATH, "wb") as f:
+        f.write(
+            public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        )
 
-    except InvalidSignature:
-        # La firma no coincide.
-        print("Verificación de firma: ¡FALLIDA! Firma inválida.")
-        return False
-    except Exception as e:
-        # Otro error (ej. mal formato de clave, etc.)
-        print(f"Error al verificar la firma: {e}")
-        return False
+    return PRIVATE_KEY_PATH, PUBLIC_KEY_PATH
+
+
+# -----------------------------------------------------
+# LOAD KEYS
+# -----------------------------------------------------
+def load_private_key():
+    with open(PRIVATE_KEY_PATH, "rb") as f:
+        return serialization.load_pem_private_key(
+            f.read(), password=None, backend=default_backend()
+        )
+
+def load_public_key():
+    with open(PUBLIC_KEY_PATH, "rb") as f:
+        return serialization.load_pem_public_key(
+            f.read(), backend=default_backend()
+        )
+
+
+# -----------------------------------------------------
+# HASH DATA
+# -----------------------------------------------------
+def hash_data(data: str) -> bytes:
+    digest = hashes.Hash(hashes.SHA256())
+    digest.update(data.encode())
+    return digest.finalize()
+
+
+# -----------------------------------------------------
+# SIGN DATA
+# -----------------------------------------------------
+def sign_data(private_key_pem: str, data: bytes) -> str:
+    private_key = load_private_key()
+
+    signature = private_key.sign(
+        data,
+        ec.ECDSA(hashes.SHA256())
+    )
+
+    # Firma como hex string
+    return signature.hex()
+

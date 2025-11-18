@@ -8,7 +8,7 @@ from crypto_utils import (
     sign_data
 )
 
-API_URL = "http://localhost:8000"   # Ajusta tu backend
+API_URL = "http://localhost:5000"  # Ajusta tu backend
 
 st.title("🚀 Sistema CodeCommit con Criptografía ECDSA")
 
@@ -25,24 +25,37 @@ if st.button("Generar claves ECDSA"):
 # LOGIN
 # --------------------------------------------------------
 st.header("🔐 Login")
+user_id = st.text_input("ID de Usuario", value="anuar")
+
 if st.button("Login"):
     try:
         # (1) Obtener challenge
         r = requests.get(f"{API_URL}/auth/challenge")
         challenge = r.json()["challenge"]
 
+        if not challenge:
+            st.error("Error conectando con el servidor (No challenge)")
+            st.stop()
+
         st.write(f"Challenge recibido: `{challenge}`")
 
         # (2) Firmar challenge
+        # Convertimos el challenge hex a bytes para firmarlo
         challenge_bytes = bytes.fromhex(challenge)
         signature_hex = sign_data("keys/private_key.pem", challenge_bytes)
 
         st.write("Firma generada:", signature_hex)
 
+        payload = {
+            "user_id": user_id,
+            "challenge": challenge,
+            "signature": signature_hex
+        }
+
         # (3) Enviar firma al backend
         r = requests.post(
             f"{API_URL}/auth/verify",
-            json={"signature": signature_hex}
+            json=payload
         )
 
         if r.status_code == 200:

@@ -1,10 +1,10 @@
 {
     "anuar": {
         "role": "programador",
-        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE7B0Hd1THFEpOy3EDA40b/IINr+Q5UGKh\nDzaKRzzFZT1vokxVZ0TthAgbUnnXP7/6k6umsT323bxWXlKjSm8tffDQDoM3hwZA\nsMsuGMZ0wdrC/0iUlmLS3nYHgpxPu3pc\n-----END PUBLIC KEY-----\n"
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDu2Wb0DThaDg5s4M7shM7zEr5bHg\n64MDFhDbkQrk6haAQO4qT150s0gwpAbj9hHZ9nT8nNEuu3vPMCPCoxIFTA==\n-----END PUBLIC KEY-----\n"
     },
     "leader_project": {
         "role": "lider",
-        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEu5bAHD7Law/m6ce4hq302gxIvaPC5YFm\nyWBLvAOM9IytPdJXLP3eMZlfc26rz/RyShohPqgPp2YTpTfOO9wIWxPA10Ik2NmP\noG3aWFueMN+JujNUkNmHe577sW/cOTsi\n-----END PUBLIC KEY-----\n"
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEdrHYpY0NuqX+8XI1sQVlHIRKRHEOG/sN\nH/cgsycvGYwy+mt0gDfwpLd+/RHvuXUPeG834b0fbUrv7ShEFinO6bI45Q1I4UaK\n5z7i3alcspXBE5jTTPBEsvvCBBpsP4xd\n-----END PUBLIC KEY-----\n"
     }
 }

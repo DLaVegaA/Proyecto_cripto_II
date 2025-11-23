@@ -3,7 +3,7 @@ import json
 from flask import Flask, jsonify, request
 
 # Importa tus funciones de verificación de la Semana 1
-from crypto_utils import verify_signature
+from crypto_utils import verify_signature, hash_data
 
 # Inicializa la aplicación Flask
 app = Flask(__name__)
@@ -51,7 +51,7 @@ def home():
 @app.route('/auth/challenge', methods=['GET'])
 def get_challenge():
     """
-    Genera un desafío aleatorio criptográficamente seguro[cite: 54].
+    Genera un desafío aleatorio criptográficamente seguro.
     Devuelve este desafío al cliente (Streamlit) para que lo firme.
     """
     # Genera 32 bytes aleatorios seguros
@@ -66,7 +66,7 @@ def get_challenge():
 @app.route('/auth/verify', methods=['POST'])
 def verify_authentication():
     """
-    Verifica la firma de un desafío[cite: 56].
+    Verifica la firma de un desafío.
     Recibe el ID del usuario, el desafío original y la firma.
     """
     data = request.get_json()
@@ -104,6 +104,63 @@ def verify_authentication():
     else:
         # ¡Firma inválida!
         return jsonify({"status": "error", "message": "Firma inválida. Autenticación fallida."}), 401
+
+
+@app.route('/code/commit', methods=['POST'])
+def commit_code():
+    """
+    Recibe el código fuente y su firma.
+    Verifica integridad (hash) y autoría (firma).
+    """
+    data = request.get_json()
+
+    # Validar que lleguen todos los datos
+    if not data or 'user_id' not in data or 'code' not in data or 'signature' not in data:
+        return jsonify({"status": "error", "message": "Faltan datos (user_id, code, signature)."}), 400
+
+    user_id = data['user_id']
+    code_content = data['code']
+    signature_hex = data['signature']
+
+    # 1. Obtener clave pública del usuario
+    public_key_pem_bytes = get_public_key(user_id)
+    if not public_key_pem_bytes:
+        return jsonify({"status": "error", "message": "Usuario no encontrado."}), 404
+
+    try:
+        # 2. Convertir firma de hex a bytes
+        signature_bytes = bytes.fromhex(signature_hex)
+
+        # 3. Calcular el hash del código recibido
+        # El cliente firmó el HASH del código, no el código crudo.
+        # Para verificar, debemos reconstruir ese hash aquí.
+        code_hash_bytes = hash_data(code_content)
+        code_hash_hex = code_hash_bytes.hex()
+
+        # 4. Verificar la firma
+        # Le pasamos el hash (en hex) a verify_signature, igual que hicimos con el challenge.
+        is_valid = verify_signature(
+            public_key_pem=public_key_pem_bytes,
+            signature=signature_bytes,
+            data=code_hash_hex
+        )
+
+        if is_valid:
+            # 5. Si es válido, guardamos el archivo (Simulación de repositorio)
+            filename = f"repo_{user_id}_commit.txt"
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(code_content)
+
+            return jsonify({
+                "status": "success",
+                "message": f"Commit aceptado. Código guardado en {filename}"
+            })
+        else:
+            return jsonify(
+                {"status": "error", "message": "Integridad fallida: La firma no coincide con el código."}), 401
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error procesando commit: {str(e)}"}), 500
 
 
 # Esto permite correr el servidor directamente con: python app.py

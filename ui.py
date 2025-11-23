@@ -75,35 +75,45 @@ if st.button("Login"):
 # --------------------------------------------------------
 st.header("📤 Subir archivo de código")
 
-uploaded_file = st.file_uploader("Selecciona un archivo de código", type=["py", "txt", "c", "cpp", "java"])
+if 'user_id' not in locals():
+    st.warning("Por favor ingresa tu ID de usuario arriba primero.")
+else:
+    uploaded_file = st.file_uploader("Selecciona un archivo de código", type=["py", "txt", "c", "cpp", "java"])
 
-if uploaded_file is not None:
-    file_content = uploaded_file.read().decode("utf-8")
+    if uploaded_file is not None:
+        # Leemos el archivo
+        file_content = uploaded_file.read().decode("utf-8")
 
-    st.write("Contenido del archivo:")
-    st.code(file_content)
+        st.write("Contenido del archivo:")
+        st.code(file_content)
 
-    if st.button("Commit archivo"):
-        try:
-            # (1) Hash del contenido
-            h = hash_data(file_content)
+        if st.button("Commit archivo"):
+            try:
+                # (1) Hash del contenido (SHA-256)
+                # Esto asegura la integridad: cualquier cambio en el texto cambia este hash.
+                h = hash_data(file_content)
 
-            # (2) Firma del hash
-            signature_hex = sign_data("keys/private_key.pem", h)
+                # (2) Firma del hash
+                # Esto asegura la autoría y no repudio.
+                signature_hex = sign_data("keys/private_key.pem", h)
 
-            # (3) Enviar al backend
-            r = requests.post(
-                f"{API_URL}/code/commit",
-                json={
+                # (3) Enviar al backend
+                # IMPORTANTE: Agregamos 'user_id' al paquete
+                payload = {
+                    "user_id": user_id,  # <-- ESTO FALTABA
                     "code": file_content,
                     "signature": signature_hex
                 }
-            )
 
-            if r.status_code == 200:
-                st.success("Archivo enviado y firmado correctamente.")
-            else:
-                st.error(f"Error al enviar el archivo: {r.text}")
+                r = requests.post(
+                    f"{API_URL}/code/commit",
+                    json=payload
+                )
 
-        except Exception as e:
-            st.error(f"Error: {e}")
+                if r.status_code == 200:
+                    st.success(f"✅ {r.json()['message']}")
+                else:
+                    st.error(f"❌ Error: {r.json().get('message')}")
+
+            except Exception as e:
+                st.error(f"Error: {e}")

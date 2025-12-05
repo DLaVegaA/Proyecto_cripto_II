@@ -1,9 +1,7 @@
 import os
 import json
 from flask import Flask, jsonify, request
-
-# Importa tus funciones de verificación de la Semana 1
-from crypto_utils import verify_signature, hash_data
+from crypto_utils import verify_signature, hash_data, encrypt_data, derive_shared_key
 
 # Inicializa la aplicación Flask
 app = Flask(__name__)
@@ -94,12 +92,12 @@ def verify_authentication():
     is_valid = verify_signature(
         public_key_pem=public_key_pem_bytes,
         signature=signature_bytes,
-        data=challenge_hex  # ¡Importante! Verifica contra los datos originales
+        data=challenge_hex
     )
 
     # 4. Devolver el resultado
     if is_valid:
-        # ¡Autenticado! [cite: 57]
+        # ¡Autenticado!
         return jsonify({"status": "success", "message": f"Usuario {user_id} autenticado."})
     else:
         # ¡Firma inválida!
@@ -108,59 +106,52 @@ def verify_authentication():
 
 @app.route('/code/commit', methods=['POST'])
 def commit_code():
-    """
-    Recibe el código fuente y su firma.
-    Verifica integridad (hash) y autoría (firma).
-    """
     data = request.get_json()
-
-    # Validar que lleguen todos los datos
     if not data or 'user_id' not in data or 'code' not in data or 'signature' not in data:
-        return jsonify({"status": "error", "message": "Faltan datos (user_id, code, signature)."}), 400
+        return jsonify({"status": "error", "message": "Faltan datos."}), 400
 
     user_id = data['user_id']
     code_content = data['code']
     signature_hex = data['signature']
 
-    # 1. Obtener clave pública del usuario
-    public_key_pem_bytes = get_public_key(user_id)
-    if not public_key_pem_bytes:
+    # 1. Verificar firma del USUARIO
+    user_pub_key = get_public_key(user_id)
+    if not user_pub_key:
         return jsonify({"status": "error", "message": "Usuario no encontrado."}), 404
 
     try:
-        # 2. Convertir firma de hex a bytes
         signature_bytes = bytes.fromhex(signature_hex)
+        code_hash_hex = hash_data(code_content).hex()
 
-        # 3. Calcular el hash del código recibido
-        # El cliente firmó el HASH del código, no el código crudo.
-        # Para verificar, debemos reconstruir ese hash aquí.
-        code_hash_bytes = hash_data(code_content)
-        code_hash_hex = code_hash_bytes.hex()
+        if verify_signature(user_pub_key, signature_bytes, code_hash_hex):
 
-        # 4. Verificar la firma
-        # Le pasamos el hash (en hex) a verify_signature, igual que hicimos con el challenge.
-        is_valid = verify_signature(
-            public_key_pem=public_key_pem_bytes,
-            signature=signature_bytes,
-            data=code_hash_hex
-        )
+            # === SEMANA 4: CIFRADO ===
+            # Ciframos para el LIDER (leader_project)
+            leader_pub_key = get_public_key("leader_project")
+            if not leader_pub_key:
+                return jsonify({"status": "error", "message": "Falta clave pública del Líder."}), 500
 
-        if is_valid:
-            # 5. Si es válido, guardamos el archivo (Simulación de repositorio)
-            filename = f"repo_{user_id}_commit.txt"
+            # ECDH: Llave Privada Servidor + Llave Pública Líder
+            server_priv_path = "server_keys/server_private.pem"
+            shared_key = derive_shared_key(server_priv_path, leader_pub_key)
+
+            # Cifrar con AES
+            encrypted_hex = encrypt_data(shared_key, code_content)
+
+            # Guardar archivo .enc (ilebible)
+            filename = f"repo_{user_id}_secure.enc"
             with open(filename, "w", encoding="utf-8") as f:
-                f.write(code_content)
+                f.write(encrypted_hex)
 
             return jsonify({
                 "status": "success",
-                "message": f"Commit aceptado. Código guardado en {filename}"
+                "message": f"Código cifrado y guardado en {filename}"
             })
         else:
-            return jsonify(
-                {"status": "error", "message": "Integridad fallida: La firma no coincide con el código."}), 401
+            return jsonify({"status": "error", "message": "Integridad fallida."}), 401
 
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Error procesando commit: {str(e)}"}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # Esto permite correr el servidor directamente con: python app.py

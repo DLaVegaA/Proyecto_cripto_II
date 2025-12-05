@@ -1,7 +1,7 @@
 {
     "anuar": {
         "role": "programador",
-        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDu2Wb0DThaDg5s4M7shM7zEr5bHg\n64MDFhDbkQrk6haAQO4qT150s0gwpAbj9hHZ9nT8nNEuu3vPMCPCoxIFTA==\n-----END PUBLIC KEY-----\n"
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZ1WaHBv0kz58Pq1pHEPTFL0oLOYW\nvL4U1O3ZW77uVjffFR3Fcgz8TdXpDqLSI/t0nIy07BALwkqMcqjjRq/pyA==\n-----END PUBLIC KEY-----\n"
     },
     "leader_project": {
         "role": "lider",

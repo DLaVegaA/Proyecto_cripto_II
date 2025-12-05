@@ -1,428 +1,48 @@
-/*
-Practica 2. CHAT CON USART
-Autores:
- * Castro Vazquez Nailea Tania
- * De la Vega Marquez Anuar
- * Juarez Palma Emmanuel
- * Lopez Jimenez Angello Michael
- * Trejo Gonzalez Ivan   
- */
+import json
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 
-// CONFIGURACION DE BITS
-#pragma config FOSC  = XT      // XT oscillator (4 MHz)
-#pragma config WDTE  = OFF     // Watchdog Timer disabled
-#pragma config PWRTE = OFF     // Power-up Timer disabled
-#pragma config BOREN = OFF     // Brown-out Reset disabled
-#pragma config LVP   = OFF     // Low-voltage programming disabled
-#pragma config CPD   = OFF     // Data EE Memory Protection off
-#pragma config WRT   = OFF     // Flash Program Memory Write off
-#pragma config CP    = OFF     // Code Protection offFF
+# --- Estas funciones vendrían de crypto_utils.py (parte de Pablo) ---
+def generate_keys_util():
+    """Genera un par de claves (privada, pública) ECDSA."""
+    private_key = ec.generate_private_key(ec.SECP384R1())
+    public_key = private_key.public_key()
+    return private_key, public_key
 
-#include <xc.h>
-#define _XTAL_FREQ 4000000
+def serialize_public_key(public_key):
+    """Convierte una clave pública a formato PEM (string)."""
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return public_pem.decode('utf-8')
+# -----------------------------------------------------------------
 
-// --- Definiciones LCD ---
-#define LCD_RS PORTCbits.RC4
-#define LCD_RW PORTCbits.RC5
-#define LCD_EN PORTAbits.RA5
-#define LCD_DATA_PORT PORTB
-#define LCD_TRIS_DATA TRISB
+print("Generando claves de prueba para 'anuar' y 'leader_project'...")
 
-// --- Definiciones Teclado ---
-#define KEY_COL_PORT PORTA
+# Generar claves para 'anuar' (programador)
+_, anuar_pub = generate_keys_util()
+anuar_pem = serialize_public_key(anuar_pub)
 
-#define BUZZER PORTAbits.RA4 // Definicion del pin de buzzer
+# Generar claves para 'leader_project' (líder)
+_, leader_pub = generate_keys_util()
+leader_pem = serialize_public_key(leader_pub)
 
-// --- Variables Globales ---
-char line_buffer[17]; // Buffer para la linea de TX (envio)
-unsigned char cursor_pos = 0;
-
-// Variables para el manejo del teclado multi-pulsacion
-char last_raw_key = '\0';
-unsigned char key_press_count = 0;
-
-// --- Variables para USART ---
-char rx_line_buffer[17]; // Buffer para la linea de RX (recepcion)
-unsigned char rx_cursor_pos = 0;
-
-// Buffer circular para la interrupcion de recepcion
-#define RX_BUFFER_SIZE 32
-volatile char rx_buffer[RX_BUFFER_SIZE];
-volatile unsigned char rx_head = 0;
-volatile unsigned char rx_tail = 0;
-
-
-// --- Prototipos de Funciones ---
-void LCD_Cmd(unsigned char cmd);
-void LCD_Char(unsigned char data);
-void LCD_Init();
-void LCD_String(const char *str);
-void LCD_SetCursor(unsigned char row, unsigned char col);
-void refresh_line_tx();
-void refresh_line_rx();
-char KEYPAD_Scan();
-void BUZZER_Beep();
-void commit_char();
-char get_mapped_char(char key, unsigned char count);
-void handle_delete();
-void handle_backspace();
-
-// --- Prototipos de Funciones USART ---
-void USART_Init();
-void USART_Write(char data);
-void process_received_char(char c);
-
-// --- Funcion de Interrupcion (ISR) ---
-__interrupt() void ISR(void) {
-    // Checar si es interrupcion de recepcion
-    if (PIR1bits.RCIF) {
-        
-        char c = RCREG; // Leer el dato (limpia la bandera RCIF)
-
-        // Manejo de error de sobre-escritura (Overrun)
-        if(RCSTAbits.OERR) {
-            RCSTAbits.CREN = 0; // Se debe reiniciar la recepcion
-            RCSTAbits.CREN = 1;
-        }
-        
-        // A�adir al buffer circular
-        unsigned char next_head = (rx_head + 1) % RX_BUFFER_SIZE;
-        if (next_head != rx_tail) { // Evitar sobreescritura si el buffer esta lleno
-            rx_buffer[rx_head] = c;
-            rx_head = next_head;
-        }
-        
-        PIR1bits.RCIF = 0; // Limpiamos
+# Crear el diccionario de la "base de datos"
+key_database = {
+    "anuar": {
+        "role": "programador",
+        "public_key_pem": anuar_pem
+    },
+    "leader_project": {
+        "role": "lider",
+        "public_key_pem": leader_pem
     }
 }
 
-// --- Funci�n Principal ---
-void main(void) {
-    ADCON1 = 0x07;
-    TRISA = 0x0F;
-    TRISAbits.TRISA4 = 0; // LCD_EN
-    TRISAbits.TRISA5 = 0; // BUZZER
-    LCD_TRIS_DATA = 0x00;
-    
-    TRISC = 0x80; // RC7 es entrada (1), el resto salidas (0).
-    
-    OPTION_REGbits.nRBPU = 0;
-    
-    PORTA = 0x00;
-    PORTB = 0x00;
-    PORTC = 0x00;
+# Guardar en el archivo JSON
+with open('public_keys.json', 'w') as f:
+    json.dump(key_database, f, indent=4)
 
-    // Inicializar buffers
-    for (int i = 0; i < 16; i++) {
-        line_buffer[i] = ' ';
-        rx_line_buffer[i] = ' ';
-    }
-    line_buffer[16] = '\0';
-    rx_line_buffer[16] = '\0';
-
-    // Inicializar perifericos
-    LCD_Init();
-    USART_Init(); 
-
-    // Pantalla inicial
-    LCD_SetCursor(0, 0);
-    LCD_String("Rx:"); // Linea 0 para Recepcion
-    LCD_SetCursor(1, 0);
-    LCD_String("Tx:"); // Linea 1 para Transmision
-    
-    refresh_line_tx();
-    refresh_line_rx();
-    LCD_SetCursor(1, 3 + cursor_pos); // Posicionar cursor en linea Tx
-
-    // Habilitar interrupciones para USART
-    PIE1bits.RCIE = 1;  // Habilitar interrupcion de recepcion USART
-    INTCONbits.PEIE = 1; // Habilitar interrupciones de perifericos
-    INTCONbits.GIE = 1;  // Habilitar interrupciones globales
-
-    char key_pressed;
-    char last_key_state = '\0';
-
-    while (1) {
-        
-        // Procesar buffer de recepcion
-        if (rx_head != rx_tail) {
-            char c = rx_buffer[rx_tail];
-            rx_tail = (rx_tail + 1) % RX_BUFFER_SIZE;
-            process_received_char(c); // Procesa el caracter recibido
-        }
-
-        key_pressed = KEYPAD_Scan();
-
-        // --- Deteccion de una nueva pulsacion (anti-rebote simple) ---
-        if (key_pressed != '\0' && key_pressed != last_key_state) {
-            BUZZER_Beep();
-
-            // --- Logica de Teclas de Funcion Especiales ---
-            if (key_pressed < '0' || key_pressed > '9') { // Si NO es un numero
-                commit_char(); // Confirma cualquier caracter pendiente antes de actuar
-                switch (key_pressed) {
-                    case 'A': // Backspace
-                        handle_backspace();
-                        break;
-                    case 'B': // Delete
-                        handle_delete();
-                        break;
-                        
-                    case 'C': // Enviar 
-                        for (int i = 0; i < 16; i++) {
-                            USART_Write(line_buffer[i]);
-                        }
-                        USART_Write('\r'); // Carriage Return
-                        
-                        //Limpiar buffer local y resetear cursor
-                        for (int i = 0; i < 16; i++) line_buffer[i] = ' ';
-                        cursor_pos = 0;
-                        refresh_line_tx(); //Actualizar LCD
-                        break;
-
-                    case '*': // Mover cursor izquierda
-                        if (cursor_pos > 0) cursor_pos--;
-                        break;
-                        
-                    case '#': // Mover cursor derecha
-                        if (cursor_pos < 15) cursor_pos++;
-                        break;
-                        
-                    case 'D': // Limpiar linea
-                        for (int i = 0; i < 16; i++) line_buffer[i] = ' ';
-                        cursor_pos = 0;
-                        refresh_line_tx();
-                        USART_Write(0x0C); // Enviar codigo de "Limpiar"
-                        break;
-                }
-                LCD_SetCursor(1, 3 + cursor_pos); 
-            }
-            // --- Logica de Teclas Numericas (Multi-Pulsacion) ---
-            else {
-                if (key_pressed != last_raw_key) { // Si es una tecla nueva
-                    commit_char(); // Confirma el caracter anterior
-                    key_press_count = 0;
-                    last_raw_key = key_pressed;
-                } else { // Si es la misma tecla otra vez
-                    key_press_count++;
-                }
-
-                char char_to_write = get_mapped_char(last_raw_key, key_press_count);
-                if (char_to_write == '\0') { // Si se acaba la secuencia, vuelve al inicio
-                    key_press_count = 0;
-                    char_to_write = get_mapped_char(last_raw_key, 0);
-                }
-
-                line_buffer[cursor_pos] = char_to_write;
-                
-                // Refresca solo el caracter actual para evitar parpadeo
-                LCD_SetCursor(1, 3 + cursor_pos);
-                LCD_Char(char_to_write);
-                LCD_SetCursor(1, 3 + cursor_pos); // Devuelve el cursor a su posicion
-
-                // Ya no se reinicia el timeout
-            }
-        }
-
-        last_key_state = key_pressed; // Guarda el estado actual para la siguiente iteracion
-        __delay_ms(10); // Pequeña pausa para estabilizar el bucle
-    }
-}
-
-// --- Inicializacion de USART ---
-void USART_Init() {
-
-    // Configuracion de Baud Rate (9600 , 4MHz, BRGH=1) ---
-    // Formula: X = (Fosc / (k * Baud)) - 1
-    // Con BRGH=1, k=16. X = (4,000,000 / (16 * 9600)) - 1 = 25.04
-    TXSTAbits.BRGH = 1; // Alta velocidad 
-    SPBRG = 25;         // Cargar valor 25 para 9600 baudios 
-
-    // --- Habilitar Transmision (Registro TXSTA) ---
-    TXSTAbits.SYNC = 0; // Modo asincrono [
-    TXSTAbits.TXEN = 1; // Habilitar transmision 
-
-    // --- Habilitar Recepcion (Registro RCSTA) ---
-    RCSTAbits.SPEN = 1; // Habilitar puerto serie (activa pines TX/RX) 
-    RCSTAbits.CREN = 1; // Habilitar recepcion continua 
-    RCSTAbits.RX9 = 0;  // Recepcion de 8 bits 
-}
-
-// --- Enviar un caracter por USART ---
-void USART_Write(char data) {
-    // Espera hasta que el registro de transmision esta listo
-    while (!TXSTAbits.TRMT); 
-    TXREG = data; // Carga el dato a transmitir
-}
-
-// --- Procesar caracter recibido desde la ISR ---
-void process_received_char(char c) {
-    switch (c) {
-        case 0x08: // Backspace
-            if (rx_cursor_pos > 0) {
-                rx_cursor_pos--;
-                rx_line_buffer[rx_cursor_pos] = ' ';
-            }
-            break;
-        case 0x7F: // Delete
-             if (rx_cursor_pos > 0) {
-                rx_line_buffer[rx_cursor_pos - 1] = ' ';
-                rx_cursor_pos--;
-             }
-            break;
-        case 0x0C: // 'Clear'
-            for (int i = 0; i < 16; i++) rx_line_buffer[i] = ' ';
-            rx_cursor_pos = 0;
-            break;
-            
-        case '\r': // Carriage Return (Enter)
-            // El mensaje ha terminado, resetear el cursor de recepcion
-            rx_cursor_pos = 0;
-            break;
-
-        default: // Caracter normal
-            if (c >= ' ' && c <= '~') { // Solo caracteres imprimibles
-                // Solo escribe si hay espacio en el buffer (0-15)
-                if (rx_cursor_pos < 16) { 
-                    rx_line_buffer[rx_cursor_pos] = c;
-                    rx_cursor_pos++;
-                }
-                // Si el buffer esta lleno, ignora el caracter
-            }
-            break;
-    }
-    refresh_line_rx(); // Actualiza la linea 0 del LCD
-}
-
-
-// --- Implementaciones de Funciones LCD 
-
-void LCD_Cmd(unsigned char cmd) { 
-    LCD_RS = 0; 
-    LCD_RW = 0; 
-    LCD_DATA_PORT = cmd; 
-    LCD_EN = 1;
-    __delay_us(5); 
-    LCD_EN = 0; 
-    __delay_ms(2); 
-}
-
-void LCD_Char(unsigned char data) { 
-    LCD_RS = 1; 
-    LCD_RW = 0; 
-    LCD_DATA_PORT = data; 
-    LCD_EN = 1; 
-    __delay_us(5); 
-    LCD_EN = 0; 
-    __delay_ms(2); 
-}
-
-void LCD_Init() { 
-    __delay_ms(20); 
-    LCD_Cmd(0x38); 
-    __delay_ms(5); 
-    LCD_Cmd(0x0F); 
-    LCD_Cmd(0x06); 
-    LCD_Cmd(0x01); 
-    __delay_ms(2); 
-}
-
-void LCD_String(const char *str) { 
-    while (*str) LCD_Char(*str++); 
-}
-
-void LCD_SetCursor(unsigned char row, unsigned char col) { 
-    LCD_Cmd((row == 0) ? (0x80 + col) : (0xC0 + col)); 
-}
-
-// --- Funciones de refresco de linea ---
-void refresh_line_tx() { 
-    LCD_SetCursor(1, 3); // Inicia en la columna 3 (despues de "Tx:")
-    LCD_String(line_buffer); 
-}
-
-void refresh_line_rx() { 
-    LCD_SetCursor(0, 3); // Inicia en la columna 3 (despues de "Rx:")
-    LCD_String(rx_line_buffer); 
-}
-
-
-void BUZZER_Beep() { 
-    for (int i = 0; i < 100; i++) {
-        BUZZER = 1; 
-        __delay_us(500); 
-        BUZZER = 0; 
-        __delay_us(500); 
-    } 
-}
-
-// Confirma el caracter, avanza el cursor y reinicia el estado de pulsacion
-void commit_char() {
-    if (last_raw_key != '\0') {       
-        if (cursor_pos < 15) {
-            cursor_pos++;
-        }
-        last_raw_key = '\0';
-        key_press_count = 0;
-        LCD_SetCursor(1, 3 + cursor_pos);
-    }
-}
-
-// Logica de Backspace
-void handle_backspace() {
-    if (cursor_pos > 0) {
-        cursor_pos--;
-        line_buffer[cursor_pos] = ' ';
-        refresh_line_tx();
-        USART_Write(0x08); // Enviar codigo de backspace
-    }
-}
-
-// L�gica de Delete (borrar caracter actual)
-void handle_delete() {
-    for (int i = cursor_pos; i < 15; i++) {
-        line_buffer[i] = line_buffer[i+1];
-    }
-    line_buffer[15] = ' '; 
-    refresh_line_tx();
-    USART_Write(0x7F); // Enviar codigo de delete
-}
-
-// Devuelve el caracter correspondiente del mapa de teclas
-char get_mapped_char(char key, unsigned char count) {
-    const char keymap[10][6] = {
-        {'0', ' ', '\0'},       // 0
-        {'1', '.', ',', '\0'},  // 1
-        {'2', 'A', 'B', 'C', '\0'}, // 2
-        {'3', 'D', 'E', 'F', '\0'}, // 3
-        {'4', 'G', 'H', 'I', '\0'}, // 4
-        {'5', 'J', 'K', 'L', '\0'}, // 5
-        {'6', 'M', 'N', 'O', '\0'}, // 6
-        {'7', 'P', 'Q', 'R', 'S', '\0'}, // 7
-        {'8', 'T', 'U', 'V', '\0'}, // 8
-        {'9', 'W', 'X', 'Y', 'Z', '\0'}  // 9
-    };
-    int key_index = key - '0'; // Convierte char '0'-'9' a int 0-9
-    return keymap[key_index][count];
-}
-
-// Escaneo del teclado 
-char KEYPAD_Scan() {
-    const char key_layout[4][4] = {
-        {'1','2','3','A'},
-        {'4','5','6','B'},
-        {'7','8','9','C'},
-        {'*','0','#','D'}
-    };
-    for (int i = 0; i < 4; i++) {
-        PORTC = (PORTC & 0xF0) | (1 << i); // Solo afecta RC0-RC3
-        __delay_us(100);
-        for (int j = 0; j < 4; j++) {
-             if (KEY_COL_PORT & (1 << j)) {
-                 return key_layout[i][j];
-             }
-        }
-    }
-    PORTC &= 0xF0;
-    return '\0';
-}
+print("¡Listo! 'public_keys.json' creado con éxito.")
+print("Por favor, elimina este script (_generate_dummy_keys.py) o añádelo a .gitignore.")

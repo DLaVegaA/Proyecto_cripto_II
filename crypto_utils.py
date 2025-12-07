@@ -1,4 +1,3 @@
-# crypto_utils.py (Versión Semana 4)
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend

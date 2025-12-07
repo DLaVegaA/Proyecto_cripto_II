@@ -12,19 +12,25 @@ KEY_DIR = "keys"
 PRIVATE_KEY_PATH = os.path.join(KEY_DIR, "private_key.pem")
 PUBLIC_KEY_PATH = os.path.join(KEY_DIR, "public_key.pem")
 
-# --- GENERATE KEYS ---
+# -----------------------
+# GENERAR LLAVES
+# -----------------------
 def generate_keys():
     if not os.path.exists(KEY_DIR):
         os.makedirs(KEY_DIR)
+
     private_key = ec.generate_private_key(ec.SECP256R1(), default_backend())
     public_key = private_key.public_key()
 
+    # Guardar privada
     with open(PRIVATE_KEY_PATH, "wb") as f:
         f.write(private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.TraditionalOpenSSL,
             encryption_algorithm=serialization.NoEncryption(),
         ))
+
+    # Guardar pública
     with open(PUBLIC_KEY_PATH, "wb") as f:
         f.write(public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
@@ -32,19 +38,25 @@ def generate_keys():
         ))
     return PRIVATE_KEY_PATH, PUBLIC_KEY_PATH
 
-# --- UTILS ---
+# -----------------------
+# CARGAR LLAVES
+# -----------------------
 def load_private_key_obj(path=PRIVATE_KEY_PATH):
     with open(path, "rb") as f:
         return load_pem_private_key(f.read(), password=None, backend=default_backend())
 
+# -----------------------
+# HASH
+# -----------------------
 def hash_data(data: str) -> bytes:
     digest = hashes.Hash(hashes.SHA256())
     digest.update(data.encode())
     return digest.finalize()
 
-# --- SIGN & VERIFY ---
+# -----------------------
+# FIRMA & VERIFICACIÓN
+# -----------------------
 def sign_data(private_key_path, data: bytes) -> str:
-    # private_key_path es ignorado, usa la ruta por defecto
     private_key = load_private_key_obj()
     signature = private_key.sign(data, ec.ECDSA(hashes.SHA256()))
     return signature.hex()
@@ -65,7 +77,9 @@ def verify_signature(public_key_pem: bytes, signature: bytes, data: str) -> bool
         print(f"Error verify: {e}")
         return False
 
-# --- NUEVO: ENCRYPTION (ECDH + AES) ---
+# -----------------------
+# CIFRADO / DESCIFRADO ECDH + AES-GCM
+# -----------------------
 def derive_shared_key(private_key_pem_path, peer_public_key_bytes):
     """Deriva clave AES compartida usando ECDH."""
     my_private_key = load_pem_private_key(

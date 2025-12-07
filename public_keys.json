@@ -1,10 +1,14 @@
 {
-    "anuar": {
-        "role": "programador",
-        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEZ1WaHBv0kz58Pq1pHEPTFL0oLOYW\nvL4U1O3ZW77uVjffFR3Fcgz8TdXpDqLSI/t0nIy07BALwkqMcqjjRq/pyA==\n-----END PUBLIC KEY-----\n"
+    "Anuar_dlvm": {
+        "role": "Lider",
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEP2kSIyd8WHoADNtXqNfKl2th36nZ\ncoEfVQYSpG21PYpKIaJ6cy+xUtPkQGuqLw1vBMLx+w75oC2iiOye2a5chg==\n-----END PUBLIC KEY-----\n"
     },
-    "leader_project": {
-        "role": "lider",
-        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEdrHYpY0NuqX+8XI1sQVlHIRKRHEOG/sN\nH/cgsycvGYwy+mt0gDfwpLd+/RHvuXUPeG834b0fbUrv7ShEFinO6bI45Q1I4UaK\n5z7i3alcspXBE5jTTPBEsvvCBBpsP4xd\n-----END PUBLIC KEY-----\n"
+    "Pablo_r": {
+        "role": "Programador Senior",
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE8jdKPs2BrIXRp1Dvd5p6i7XM9dj0\naqT06dQfGMcq+rQY12EXGK0DxsNOHpILVa+yqcIVC+WeWENm87Jw6PJyzw==\n-----END PUBLIC KEY-----\n"
+    },
+    "Paola_gr": {
+        "role": "Programador",
+        "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEznECbxQKhuc/jAj7TJDUyrjOm9GZ\njzjnQyBnQlC6LkMpYhHuyO9Pr1AiFDuEAxvcIaUgebmDCPD+M3ONpLV+ZQ==\n-----END PUBLIC KEY-----\n"
     }
 }
